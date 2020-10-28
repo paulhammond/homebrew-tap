@@ -1,0 +1,155 @@
+name: Bottle
+
+# If you're reading this trying to understand how to add bottles to your own tap
+# know that all of the `brew bottle` commands below aren't well supported and
+# the Homebrew team strongly recomment using `brew test-bot`, which is set up
+# for you if you run `brew tap-new`
+
+on:
+  push:
+    # only run on commits that change a formula file
+    paths:
+    - "Formula/*.rb"
+    # do not run on commits to main. The intended workflow is to prepare a
+    # change on a branch or PR, so by the time a change is merged into main it
+    # should already have bottles built.
+    branches-ignore:
+    - "main"
+
+jobs:
+
+  # the rest of this workflow only works with one formula at a time. This job
+  # checks that is true, and sets output.formula to the name of that formula.
+  check:
+    name: "Check"
+    runs-on: ubuntu-20.04
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - id: calculate
+        name: calcuate formula
+        run: |
+          diff=($(git diff-tree --no-commit-id --name-only -r origin/main ${{github.sha}} -- Formula))
+          echo "diff is [${diff[@]}]"
+          [ "${#diff[@]}" -gt 1 ] && echo "too many formula changes" && exit 1
+          [[ "${diff[0]}" != Formula/*.rb ]] && echo "not formula" && exit 1
+          basename="${diff[0]##*/}"
+          echo "::set-output name=formula::${basename%.*}"
+    outputs:
+      formula: ${{ steps.calculate.outputs.formula }}
+
+  # the build job runs builds the bottle files and uploads them to github
+  # releases. It also uploads the JSON bottle files to artifacts for the commit
+  # job.
+  build:
+    name: Build
+    needs: check
+    if: needs.check.outputs.formula != ''
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-10.15, macos-11.0]
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v2
+      - name: Select Xcode
+        run: "sudo xcode-select -s /Applications/Xcode_12.2.app"
+      - name: Link Tap
+        run: |
+          tapdir="$(brew --repo paulhammond/tap)"
+          mkdir -p "$(dirname $tapdir)"
+          ln -s "$GITHUB_WORKSPACE" "$tapdir"
+      # This is step one of the brew bottling process. First you `brew install`
+      # with --build-bottle. This does the actual compiling. Then you call
+      # `brew bottle` which generates a bottle tarballs a json output file
+      - name: Bottle
+        run: |
+          brew install --build-bottle paulhammond/tap/${{needs.check.outputs.formula}}
+          brew bottle -v --json --root-url="https://github.com/paulhammond/homebrew-tap/releases/download/bottles/" paulhammond/tap/${{needs.check.outputs.formula}}
+      # `brew bottle` outputs a file called `name--version.os.bottle.tar.gz`
+      # with two dashes but the file you upload should only have one dash and
+      # the documented way to know those filenames is to read the json file. But
+      # first we have to find that json file…
+      - id: parse
+        name: Parse bottle output
+        run: |
+          json_files=(*.bottle.json)
+
+          ## should only be one json file
+          [ "${#json_files[@]}" -gt 1 ] && echo "too many json files" && exit 1
+          json=${json_files[0]}
+
+          ## for debugging
+          git status
+          cat "$json"
+          echo
+
+          ## find out the filepaths and upload paths
+          echo "::set-output name=jsonfile::${json}"
+          echo "::set-output name=localfile::$(jq -r '.[].bottle.tags[].local_filename' "$json")"
+          echo "::set-output name=remotefile::$(jq -r '.[].bottle.tags[].filename' "$json")"
+      - name: Upload JSON
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.parse.outputs.jsonfile }}
+          path: ${{ steps.parse.outputs.jsonfile }}
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload tarball
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # The bottles github release was made manually:
+          #    git checkout --orphan bottlebranch
+          #    git rm --cached -r .
+          #    git commit --allow-empty -m "bottles"
+          #    git tag -a bottles -m "bottles" bottlebranch
+          #    git push origin bottles
+          # a release was then made in the Github UI and the upload path for
+          # that release is hardcoded here
+          upload_url: "https://uploads.github.com/repos/paulhammond/homebrew-tap/releases/33138625/assets{?name,label}"
+          asset_path: ${{ steps.parse.outputs.localfile }}
+          asset_name: ${{ steps.parse.outputs.remotefile }}
+          asset_content_type: application/gzip
+
+  # the commit job combines JSON files into an updated formula, commits it and
+  # pushes that commit back to Github.
+  commit:
+    name: "Commit"
+    runs-on: "macos-10.15"
+    needs: [check, build]
+    if: needs.check.outputs.formula != ''
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v2
+      - name: Select Xcode
+        run: "sudo xcode-select -s /Applications/Xcode_12.1.app"
+      - name: Link Tap
+        run: |
+          tapdir="$(brew --repo paulhammond/tap)"
+          mkdir -p "$(dirname $tapdir)"
+          ln -s "$GITHUB_WORKSPACE" "$tapdir"
+      - name: Download json files
+        uses: actions/download-artifact@v2
+        with:
+          path: artifacts
+      # this is step two of the bottle process. We take all the json files
+      # that were created previously, and run `brew bottle--merge --write` on
+      # them. It adds the urls and hashes of the tarballs to the recipe.
+      - name: "Generate commit"
+        run: |
+          git config user.name 'Tap Bot'
+          git config user.email 'bot@paulhammond.org'
+          brew bottle -v --merge --write artifacts/*/*.bottle.json
+          echo "Commit:"
+          git show --format=fuller
+          git push
