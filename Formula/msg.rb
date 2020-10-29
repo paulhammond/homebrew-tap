@@ -1,13 +1,19 @@
 require 'formula'
 
 class Msg < Formula
+  desc "My Site Generator"
   homepage 'https://github.com/paulhammond/msg'
-  url 'https://github.com/paulhammond/msg/releases/download/v0.0.1/msg-mac-v0.0.1.tgz'
-  version '0.0.1'
-  sha256 'a5f196788bdee0048a287ccdc5836657ac48e43d50ebfb0e4e7ef015ef62e971'
+  url "https://github.com/paulhammond/msg.git",
+    revision: "1027ab0861b0ae65d385f764d18b3e8ff59ff0b3",
+    tag:      "v0.0.1"
+  revision 1
+  head "https://github.com/paulhammond/msg.git"
+  license "MIT"
+
+  depends_on "go" => :build
 
   def install
-    bin.install 'msg'
+    system "go", "build", "-ldflags", "-s -w -X github.com/paulhammond/msg/internal/msg.version=v#{version}", "-trimpath", "-o", bin/"msg", "./cmd/msg"
   end
 
   test do
