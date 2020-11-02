@@ -5,7 +5,8 @@ class Bearbag < Formula
     revision: "035475c65a75c64cfc867efca983c95f1fd4a9e1",
     tag:      "v0.1"
   license "MIT"
-  head "https://github.com/paulhammond/bearbag.git"
+  head "https://github.com/paulhammond/bearbag.git",
+    :branch => "main"
 
   depends_on xcode: ["11.0", :build]
 
