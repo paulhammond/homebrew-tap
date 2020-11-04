@@ -4,18 +4,10 @@ class Msg < Formula
   desc "My Site Generator"
   homepage 'https://github.com/paulhammond/msg'
   url "https://github.com/paulhammond/msg.git",
-    revision: "1027ab0861b0ae65d385f764d18b3e8ff59ff0b3",
-    tag:      "v0.0.1"
-  revision 1
+    revision: "ddd1bc488e5ef8384e667b0ffc5235e12e7438e9",
+    tag:      "v0.0.2"
   head "https://github.com/paulhammond/msg.git"
   license "MIT"
-
-  bottle do
-    root_url "https://github.com/paulhammond/homebrew-tap/releases/download/bottles/"
-    cellar :any_skip_relocation
-    sha256 "77e506ee4ee5eb87003cb637977bc8b1063c79381da94b5f6c241116a52a5f4a" => :big_sur
-    sha256 "69ea92b1f1c63c8ef0513258162d9aa8e3956e2ced738acdaa675a142486cbaf" => :catalina
-  end
 
   depends_on "go" => :build
 
