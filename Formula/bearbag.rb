@@ -6,7 +6,7 @@ class Bearbag < Formula
     tag:      "v0.1"
   license "MIT"
   head "https://github.com/paulhammond/bearbag.git",
-    :branch => "main"
+    branch: "main"
 
   depends_on xcode: ["11.0", :build]
 
