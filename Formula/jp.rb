@@ -1,25 +1,25 @@
 class Jp < Formula
+  desc "jp JSON reformatter"
   homepage "https://paulhammond.org/jp"
-  url "https://github.com/paulhammond/jp.git",
-    revision: "8ad2851b05f0b89b60512970700140967ad14ec9",
-    tag:      "v0.3"
   license "MIT"
-  revision 1
-  head "https://github.com/paulhammond/jp.git"
+  version "1.0"
 
-  bottle do
-    root_url "https://github.com/paulhammond/homebrew-tap/releases/download/bottles/"
-    sha256 cellar: :any_skip_relocation, big_sur:  "04331eaccb28c6db7c74a9ced0681e7feeb558fa737cc9e4b7b2b8b09af2bfd3"
-    sha256 cellar: :any_skip_relocation, catalina: "b0731101a35b23c0277777c6b0ab4c33e90b57ffd32cb7682c905956e420a6fb"
+  on_macos do
+    on_intel do
+      url "https://github.com/paulhammond/jp/releases/download/v1.0/jp-macos-amd64-v1.0.tgz"
+      sha256 "58a742369fdb4c6a85d6965441450d961f3e8bb61e1319af5c762962b5545d52"
+    end
+    on_arm do
+      url "https://github.com/paulhammond/jp/releases/download/v1.0/jp-macos-arm64-v1.0.tgz"
+      sha256 "af733fa19b041e28930f760f8a0ea980926cb30df915da92517e2d360babcdfa"
+    end
   end
 
-  depends_on "go" => :build
-
   def install
-    system "go", "build", "-o", bin/"jp", "./jp"
+    bin.install "jp"
   end
 
   test do
-    `echo '{"foo": "bar" }' | jp -compact - ` == '{"foo":"bar"}'
+    `echo '{"foo": "bar" }' | jp --compact - ` == '{"foo":"bar"}'
   end
 end
